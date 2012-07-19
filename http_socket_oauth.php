@@ -1,5 +1,5 @@
 <?php
-App::import('Core', 'HttpSocket');
+App::uses('HttpSocket', 'Network/Http');
 
 /**
  * Extension to CakePHP core HttpSocket class that overrides the request method
@@ -32,7 +32,7 @@ class HttpSocketOauth extends HttpSocket {
    *
    * @var array
    */
-	var $defaults = array(
+  var $defaults = array(
     'oauth_version' => '1.0',
     'oauth_signature_method' => 'HMAC-SHA1',
   );
@@ -52,7 +52,7 @@ class HttpSocketOauth extends HttpSocket {
     if (!isset($request['auth']['method']) || $request['auth']['method'] != 'OAuth') {
       return parent::request($request);
     }
-
+    
     // Generate the OAuth Authorization Header content for this request from the
     // request data and add it into the request's Authorization Header. Note, we
     // don't just add the header directly in the request variable and return the
@@ -62,7 +62,7 @@ class HttpSocketOauth extends HttpSocket {
     // Twitter includes an Authorization Header as required by twitter's verify
     // credentials API in the X-Verify-Credentials-Authorization header.
     $request['header']['Authorization'] = $this->authorizationHeader($request);
-
+    
     // Now the Authorization header is built, fire the request off to the parent
     // HttpSocket class request method that we intercepted earlier.
     return parent::request($request);
@@ -92,19 +92,19 @@ class HttpSocketOauth extends HttpSocket {
    * @return String
    */
   function authorizationHeader($request) {
-
+    
     $request['auth'] = array_merge($this->defaults, $request['auth']);
-
+    
     // Nonce, or number used once is used to distinguish between different
     // requests to the OAuth provider
     if (!isset($request['auth']['oauth_nonce'])) {
       $request['auth']['oauth_nonce'] = md5(uniqid(rand(), true));
     }
-
+    
     if (!isset($request['auth']['oauth_timestamp'])) {
       $request['auth']['oauth_timestamp'] = time();
     }
-
+    
     // Now starts the process of signing the request. The signature is a hash of
     // a signature base string with the secret keys. The signature base string
     // is made up of the request http verb, the request uri and the request
@@ -112,7 +112,7 @@ class HttpSocketOauth extends HttpSocket {
     // application) and the access token secret generated for the user by the
     // provider, e.g. twitter, when the user authorizes your app to access their
     // details.
-
+    
     // Building the request uri, note we don't include the query string or
     // fragment. Standard ports must not be included but non standard ones must.
     $uriFormat = '%scheme://%host';
@@ -120,12 +120,12 @@ class HttpSocketOauth extends HttpSocket {
       $uriFormat .= ':' . $request['uri']['port'];
     }
     $uriFormat .= '/%path';
-    if (strpos(Configure::version(), "1.2") == 0) {
-	$requestUrl = $this->buildUri($request['uri'], $uriFormat);
-    } else {
+    //if (strpos(Configure::version(), "1.2") == 0) {
+	//$requestUrl = $this->buildUri($request['uri'], $uriFormat);
+    //} else {
 	$requestUrl = $this->_buildUri($request['uri'], $uriFormat);
-    }
-
+    //}
+    
     // OAuth reference states that the request params, i.e. oauth_ params, body
     // params and query string params need to be normalised, i.e. combined in a
     // single string, separated by '&' in the format name=value. But they also
@@ -134,7 +134,7 @@ class HttpSocketOauth extends HttpSocket {
     // parameters with the same name. Instead we've got to get them into an
     // array of array('name' => '<name>', 'value' => '<value>') elements, then
     // sort those elements.
-
+    
     // Let's start with the auth params - however, we shouldn't include the auth
     // method (OAuth), and OAuth reference says not to include the realm or the
     // consumer or token secrets
@@ -142,21 +142,21 @@ class HttpSocketOauth extends HttpSocket {
       $request['auth'],
       array_flip(array('realm', 'method', 'oauth_consumer_secret', 'oauth_token_secret'))
     ));
-
+    
     // Next add the body params if there are any and the content type header is
     // not set, or it's application/x-www-form-urlencoded
     if (isset($request['body']) && (!isset($request['header']['Content-Type']) || stristr($request['header']['Content-Type'], 'application/x-www-form-urlencoded'))) {
       $requestParams = array_merge($requestParams, $this->assocToNumericNameValue($request['body']));
     }
-
+    
     // Finally the query params
     if (isset($request['uri']['query'])) {
       $requestParams = array_merge($requestParams, $this->assocToNumericNameValue($request['uri']['query']));
     }
-
+    
     // Now we can sort them by name then value
     usort($requestParams, array($this, 'sortByNameThenByValue'));
-
+    
     // Now we concatenate them together in name=value pairs separated by &
     $normalisedRequestParams = '';
     foreach ($requestParams as $k => $requestParam) {
@@ -165,14 +165,14 @@ class HttpSocketOauth extends HttpSocket {
       }
       $normalisedRequestParams .= $requestParam['name'] . '=' . $this->parameterEncode($requestParam['value']);
     }
-
+    
     // The signature base string consists of the request method (uppercased) and
     // concatenated with the request URL and normalised request parameters
     // string, both encoded, and separated by &
     $signatureBaseString = strtoupper($request['method']) . '&'
                          . $this->parameterEncode($requestUrl) . '&'
                          . $this->parameterEncode($normalisedRequestParams);
-
+    
     // The signature base string is hashed with a key which is the consumer
     // secret (assigned to your application by the provider) and the token
     // secret (also known as the access token secret, if you've got it yet),
@@ -185,7 +185,7 @@ class HttpSocketOauth extends HttpSocket {
     if (isset($request['auth']['oauth_token_secret'])) {
       $key .= $this->parameterEncode($request['auth']['oauth_token_secret']);
     }
-
+    
     // Finally construct the signature according to the value of the
     // oauth_signature_method auth param in the request array.
     switch ($request['auth']['oauth_signature_method']) {
@@ -196,26 +196,26 @@ class HttpSocketOauth extends HttpSocket {
         // @todo implement the other 2 hashing methods
         break;
     }
-
+    
     // Finally, we have all the Authorization header parameters so we can build
     // the header string.
     $authorizationHeader = 'OAuth';
-
+    
     // We don't want to include the realm, method or secrets though
     $authorizationHeaderParams = array_diff_key(
       $request['auth'],
       array_flip(array('method', 'oauth_consumer_secret', 'oauth_token_secret', 'realm'))
     );
-
+    
     // Add the Authorization header params to the Authorization header string,
     // properly encoded.
     $first = true;
-
+    
     if (isset($request['auth']['realm'])) {
       $authorizationHeader .= ' realm="' . $request['auth']['realm'] . '"';
       $first = false;
     }
-
+    
     foreach ($authorizationHeaderParams as $name => $value) {
       if (!$first) {
         $authorizationHeader .= ',';
@@ -225,9 +225,9 @@ class HttpSocketOauth extends HttpSocket {
       }
       $authorizationHeader .= $this->authorizationHeaderParamEncode($name, $value);
     }
-
+    
     return $authorizationHeader;
-
+    
   }
 
   /**
